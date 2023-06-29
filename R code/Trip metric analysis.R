@@ -5,13 +5,17 @@ library(MuMIn)
 library(tidyverse)
 options(na.action = na.fail)
 
+
 #--------------------------------#
 # Read in trip metrics data   ####
 #--------------------------------#
 
 # categorise single vs multi-day trips
 RFB_tripmetrics <- read_csv("Data/RFB_2016-2023_tripmetrics.csv") %>%
-  mutate(trip_length_days = case_when(Trip_duration > 24 ~ "multi", .default = "single"))
+  mutate(trip_length_days = case_when(Trip_duration > 24 ~ "multi", .default = "single"),
+         colony_sub = case_when(Colony == "DG" & Year != 2022 ~ "BP",
+                                Colony == "DG" & Year == 2022 ~ "EI", 
+                                .default = Colony))
 names(RFB_tripmetrics)
 
 hist(log(RFB_tripmetrics$Trip_duration))
@@ -25,9 +29,67 @@ RFB_complete <- RFB_tripmetrics %>%
   mutate(year_f = as.factor(Year),
          log_duration = log10(Trip_duration),
          log_totdist = log10(Total_distance),
-         log_maxdist = log10(Max_distance))
+         log_maxdist = log10(Max_distance),
+         col_yr = paste0(colony_sub, "_", year_f),
+         colony_sub_f = factor(colony_sub, levels = c("EI", "BP", "NI", "DI")))
 
 
+
+#------------------------------------#
+# model ####
+#------------------------------------#
+# trip duration ####
+
+m.logduration <- lmerTest::lmer(log_duration ~ colony_sub + Monsoon + (1|year_f) + (1|Sex) + (1|Breed_Stage) + (1|BirdID), 
+                                data = RFB_complete, REML = T)
+
+step_logduration <- lmerTest::step(m.logduration, reduce.random = F)
+step_logduration # Display elimination results
+
+final_logduration <- lmerTest::get_model(step_logduration)
+final_logduration
+qqnorm(resid(final_logduration))
+qqline(resid(final_logduration))
+
+summary(final_logduration)
+plot(ggeffects::ggeffect(final_logduration))
+
+
+
+# trip duration ####
+
+m.logtotdist <- lmerTest::lmer(log_totdist ~ colony_sub + Monsoon + (1|year_f) + (1|Sex) + (1|Breed_Stage) + (1|BirdID), 
+                                data = RFB_complete, REML = T)
+
+step_logtotdist <- lmerTest::step(m.logtotdist, ddf="Kenward-Roger", reduce.random = F)
+step_logtotdist # Display elimination results
+
+final_logtotdist <- lmerTest::get_model(step_logtotdist)
+final_logtotdist
+qqnorm(resid(final_logtotdist))
+qqline(resid(final_logtotdist))
+
+summary(final_logtotdist)
+plot(ggeffects::ggpredict(final_logtotdist))
+
+
+# trip duration ####
+
+m.logmaxdist <- lmerTest::lmer(log_maxdist ~ colony_sub + Monsoon + (1|year_f) + (1|Sex) + (1|Breed_Stage) + (1|BirdID), 
+                               data = RFB_complete, REML = T)
+
+step_logmaxdist <- lmerTest::step(m.logmaxdist, ddf="Kenward-Roger", reduce.random = F)
+step_logmaxdist # Display elimination results
+
+final_logmaxdist <- lmerTest::get_model(step_logmaxdist)
+final_logmaxdist
+qqnorm(resid(final_logmaxdist))
+qqline(resid(final_logmaxdist))
+
+summary(final_logmaxdist)
+plot(ggeffects::ggpredict(final_logmaxdist))
+
+######################### analyses pre-new data ################
 #------------------------------------#
 # within-colony differences at DG ####
 #------------------------------------#
@@ -156,7 +218,7 @@ save_as_docx(d.intracol.out, path = here("Tables", "Supplementary_mod_selection_
 # between colony differences ####
 #-------------------------------#
 
-m.all.logduration <- lmer(log_duration ~ Colony + year_f + (1|BirdID), data = RFB_complete)
+m.all.logduration <- lmer(log_duration ~ Colony * year_f + (1|BirdID), data = RFB_complete)
 qqnorm(resid(m.all.logduration))
 qqline(resid(m.all.logduration))
 
@@ -165,7 +227,7 @@ d.all.logduration <- dredge(m.all.logduration)
 
 d.all.logduration.out <- d.all.logduration  %>%
   tibble() %>%
-  filter(delta < 2)
+  mutate(Trip_metric = "Trip duration", .before = Colony)
 d.all.logduration.out
 
 plot_model(m.all.logduration)
@@ -176,16 +238,18 @@ param.logdur$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
 
 # total distance ####
 
-complete.trips$log_TotDistance = log10(complete.trips$TotalDistance)
+m.all.logtotdist <- lmer(log_totdist ~ Colony * year_f + (1|BirdID), data = RFB_complete)
+qqnorm(resid(m.all.logtotdist))
+qqline(resid(m.all.logtotdist))
 
+summary(m.all.logtotdist)
+d.all.logtotdist <- dredge(m.all.logtotdist)
 
-m.all.logTotDistance <- lmer(log_TotDistance ~ ColYear + (1|BirdID), data = complete.trips)
-qqnorm(resid(m.all.logTotDistance))
-qqline(resid(m.all.logTotDistance))
+d.all.logtotdist.out <- d.all.logtotdist  %>%
+  tibble() %>%
+  mutate(Trip_metric = "Total distance", .before = Colony)
+d.all.logtotdist.out
 
-summary(m.all.logTotDistance)
-dredge.logTotDistance <- dredge(m.all.logTotDistance)
-write.csv(dredge.logTotDistance, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Model selection/dredge.logTotDistance_allcols.csv", row.names = F)
 
 plot_model(m.all.logTotDistance)
 plot_model(m.all.logTotDistance, type = "pred", show.data = T, jitter = T)
@@ -197,16 +261,17 @@ param.totdist$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
 
 # max distance ####
 
-complete.trips$log_MaxDistance = log10(complete.trips$MaxDistance)
-head(complete.trips)
+m.all.logmaxdist <- lmer(log_maxdist ~ Colony * year_f + (1|BirdID), data = RFB_complete)
+qqnorm(resid(m.all.logmaxdist))
+qqline(resid(m.all.logmaxdist))
 
-m.all.logMaxDistance <- lmer(log_MaxDistance ~ ColYear + (1|BirdID), data = complete.trips)
-qqnorm(resid(m.all.logMaxDistance))
-qqline(resid(m.all.logMaxDistance))
+summary(m.all.logmaxdist)
+d.all.logmaxdist <- dredge(m.all.logmaxdist)
 
-summary(m.all.logMaxDistance)
-dredge.logMaxDistance <- dredge(m.all.logMaxDistance)
-write.csv(dredge.logMaxDistance, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Model selection/dredge.logMaxDistance_allcols.csv", row.names = F)
+d.all.logmaxdist.out <- d.all.logmaxdist  %>%
+  tibble() %>%
+  mutate(Trip_metric = "Max distance", .before = Colony)
+d.all.logmaxdist.out
 
 plot_model(m.all.logMaxDistance)
 plot_model(m.all.logMaxDistance, type = "pred", show.data = T, jitter = T)

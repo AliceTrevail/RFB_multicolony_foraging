@@ -163,12 +163,17 @@ df_tripmetrics_summary_all <- df_tripmetrics_summary_colony %>%
 df_tripmetrics_summary_all
 
 # make flextable ####
+
+df_tripmetrics_summary_pop <- df_tripmetrics_summary_pop %>%
+  mutate(Colony = case_when(Colony == "DG" & Year != 2022 ~ "BP",
+                   Colony == "DG" & Year == 2022 ~ "EI", 
+                   .default = Colony))
 #new header labels
 pars <- as_paragraph(as_chunk(c("Colony", "Year", "Monsoon", "Trip duration (hours)", "Total distance (km)", "Max distance (km)")))
 
 df_tripmetrics_table <- bind_rows(df_tripmetrics_summary_pop, df_tripmetrics_summary_colony, df_tripmetrics_summary_all)%>%
-  arrange(Colony, Year, Monsoon) %>%
-  select(-N_Trips_total)%>%
+  arrange(factor(Colony, levels = c("ALL","BP", "EI", "DG", "DI", "NI")), Year, Monsoon) %>%
+  dplyr::select(-N_Trips_total)%>%
   flextable() %>%
   set_header_labels(Trip_duration_mean = 'mean',
                     Trip_duration_se = 'se',
@@ -220,7 +225,10 @@ df_sample_sizes_pop <- df_tripmetrics %>%
             Incubation = n_distinct(BirdID[Breed_Stage == "incubation"]),
             Chick.rearing = n_distinct(BirdID[Breed_Stage == "chick-rearing"]),
             Breeding = n_distinct(BirdID[Breed_Stage == "breeding"])) %>%
-  mutate(Year = as.factor(Year))
+  mutate(Year = as.factor(Year),
+         Colony = case_when(Colony == "DG" & Year != 2022 ~ "BP",
+                            Colony == "DG" & Year == 2022 ~ "EI", 
+                            .default = Colony))
 df_sample_sizes_pop
 
 
@@ -259,10 +267,10 @@ pars2 <- as_paragraph(as_chunk(c("Colony", "Colony size\n(br. pairs)", "Latitude
                                  "Year", "Monsoon", "No.\nindividuals", "No.\ntrips", "No. individuals by Sex", "No. individuals by Breeding Stage")))
 
 df_sample_sizes_table <- bind_rows(df_sample_sizes_pop, df_sample_sizes_col, df_sample_sizes_all)%>%
-  arrange(Colony, Year, Monsoon) %>%
-  mutate(Col.size = case_when(Colony == "DG" ~ 8068, Colony == "DI" ~ 3500, Colony == "NI" ~ 3300, .default = NA),
-         Lat = case_when(Colony == "DG" ~ -7.23, Colony == "DI" ~ -6.39, Colony == "NI" ~ -5.68, .default = NA),
-         Lon = case_when(Colony == "DG" ~ 72.43, Colony == "DI" ~ 71.24, Colony == "NI" ~ 72.32, .default = NA),
+  arrange(factor(Colony, levels = c("ALL","BP", "EI", "DG", "DI", "NI")), Year, Monsoon) %>%
+  mutate(Col.size = case_when(Colony == "BP" ~ 9269, Colony == "EI" ~ 1113, Colony == "DG" ~ 10382, Colony == "DI" ~ 3500, Colony == "NI" ~ 3300, .default = NA),
+         Lat = case_when(Colony == "BP" ~ -7.23, Colony == "EI" ~ -7.22, Colony == "DI" ~ -6.39, Colony == "NI" ~ -5.68, .default = NA),
+         Lon = case_when(Colony == "BP" ~ 72.43, Colony == "EI" ~ 72.42, Colony == "DI" ~ 71.24, Colony == "NI" ~ 72.32, .default = NA),
          .after = Colony) %>%
   flextable() %>%
   set_header_labels(Col.size = 'Colony size\n(br. pairs)',
