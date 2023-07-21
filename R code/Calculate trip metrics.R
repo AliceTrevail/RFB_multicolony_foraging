@@ -64,11 +64,12 @@ df_tripmetrics <- RFB_trips %>%
   summarise(DepartureTime = min(datetime),
             ArrivalTime = max(datetime),
             Completetrip = ifelse(complete == TRUE, "Complete", "Incomplete"), # Complete if  last point is back at the CP
-            Trip_duration = difftime(max(datetime), min(datetime), units="mins"),
+            Trip_duration = difftime(max(datetime), min(datetime), units="hours"),
             Total_distance = sum(dist, na.rm = T), #km
             Max_distance = max(ColonyDist)) %>%
   distinct()
 df_tripmetrics
+str(df_tripmetrics)
 
 # save trip metrics ####
 write_csv(df_tripmetrics, 'Data/RFB_2016-2023_tripmetrics.csv')

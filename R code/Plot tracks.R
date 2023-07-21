@@ -9,13 +9,18 @@ library(ggnewscale)
 library(ggpubr)
 library(RColorBrewer)
 library(cowplot)
+library(patchwork)
 
 ###### import tracking data and map layers #####
-RFB_trips <- read_csv("Data/RFB_2016-2023.csv")
+RFB_trips <- read_csv("Data/RFB_2016-2023.csv") %>%
+  mutate(colony_sub = case_when(Colony == "DG" & Year != 2022 ~ "BP",
+                                Colony == "DG" & Year == 2022 ~ "EI", 
+                                .default = Colony),
+         Colony_f = factor(colony_sub, levels = c("BP", "EI", "DI", "NI")))
 head(RFB_trips)
 str(RFB_trips)
 
-
+# read in map layers 
 chagos = st_read("/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Rcode/Chagos/Chagos_v6.shp")
 head(chagos)
 chagos$DEPTHLABEL = fct_relevel(chagos$DEPTHLABEL, "land", "shallow", "variable", "deep")
@@ -24,7 +29,7 @@ MPA <- read.csv("/Users/at687/Documents/BIOT/Non-breeding/Data/Map Indian Ocean/
 MPA_shp = st_read("/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Rcode/Chagos/ChagosEEZ.shp")
 
   
-colonies <- read.csv("/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Colonies.csv", as.is = T)
+colonies <- read.csv("Data/Colonies.csv", as.is = T) %>% filter(!Colony == "DG")
 CAcols <- read_csv("/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Breeding numbers.csv")
 RFBcols <- subset(CAcols, Sula.sula > 0)
 str(RFBcols)
@@ -40,11 +45,13 @@ chagos_bathy <- getNOAA.bathy(lon1 = 66, lon2 = 78,
 chagos_bathy_fort = fortify(chagos_bathy)
 head(chagos_bathy_fort)
 
+col_values <- brewer.pal(9, "RdPu")[c(8,6,5,3)]
+col_labs <- c("Diego Garcia - Barton Point", "Diego Garcia - East Island", "Danger Island", "Nelson's Island")
 
 ### map tracks #####
 
 trackmap <- ggplot() + 
-  geom_raster(data = chagos_bathy_fort, aes(x=x, y=y, fill=z), alpha = 0.9) +
+  geom_raster(data = chagos_bathy_fort, aes(x=x, y=y, fill=z), alpha = 0.8) +
   scale_x_continuous(limits = c(67.5, 76.4), expand = c(0,0))+
   scale_y_continuous(expand = c(-0.05,-0.05))+
   #geom_path(data = MPA, aes(x = Long, y = Lat), inherit.aes = FALSE, col = "grey90", lwd = 0.6)+
@@ -57,47 +64,69 @@ trackmap <- ggplot() +
   # geom_path(data = RFB_trips[RFB_trips$ColYear == "NI_2018",], aes(x = Longitude, y = Latitude, group = TripID, colour = ColYear), alpha = 0.6) + 
   # scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
   #                    labels = c("Diego Garcia\n(ALL)", "Danger Island\n(2019)", "Nelson's Island\n(2018)", "Nelson's Island\n(2019)")) + 
-  geom_path(data = RFB_trips, aes(x = Longitude, y = Latitude, group = TripID, colour = Colony), alpha = 0.6) + 
-  scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island")) + 
+  geom_path(data = RFB_trips, aes(x = Longitude, y = Latitude, group = TripID, colour = Colony_f), alpha = 0.6) + 
+  scale_colour_manual(values = col_values, "Colony",
+                     labels = col_labs) + 
   guides(colour = guide_legend(override.aes = list(alpha = 1)))+
   geom_point(data = colonies, aes(x = Long, y = Lat), inherit.aes = FALSE, cex = 1)+
   theme_bw() +
   theme(panel.grid = element_blank(), legend.key.size = unit(0.8, "cm"))+
   labs(x = " ", y = "Latitude (°N)")
-trackmap
+#trackmap
 
 
 ####### foraging ranges #######
 
 tripmetrics <- read_csv("Data/RFB_2016-2023_tripmetrics.csv") %>%
-  group_by(Colony, BirdID)%>%
+  mutate(trip_length_days = case_when(Trip_duration > 24 ~ "multi", .default = "single"),
+         colony_sub = case_when(Colony == "DG" & Year != 2022 ~ "BP",
+                                Colony == "DG" & Year == 2022 ~ "EI", 
+                                .default = Colony),
+         Colony_f = factor(colony_sub, levels = c("BP", "EI", "DI", "NI"))) %>%
+  group_by(Colony_f, BirdID)%>%
   summarise(ind_max = max(Max_distance)) %>%
   ungroup() %>%
-  group_by(Colony)%>%
+  group_by(Colony_f)%>%
   summarise(mean_range = mean(ind_max),
             max_range = max(ind_max))
 
 colonies_sf <- colonies %>%
-  left_join(., tripmetrics, by = "Colony") %>%
+  rename(Colony_f = Colony) %>%
+  right_join(., tripmetrics) %>%
   st_as_sf(., coords = c("Long", "Lat"), crs = 4326)
   
 
 colonies_sf_max <- colonies_sf %>%
   st_transform(., CRS("+proj=laea +lat_0=-7 +lon_0=72 +units=m")) %>%
-  group_by(Colony)%>%
+  group_by(Colony_f)%>%
   st_buffer(., dist = c(.$max_range)*1000) %>%
   st_transform(., 4326) %>%
   mutate(Range = "max")
 
 colonies_sf_mean <- colonies_sf %>%
   st_transform(., CRS("+proj=laea +lat_0=-7 +lon_0=72 +units=m")) %>%
-  group_by(Colony)%>%
+  group_by(Colony_f)%>%
   st_buffer(., dist = c(.$mean_range)*1000) %>%
   st_transform(., 4326)  %>%
   mutate(Range = "mean")
 
-colony_ranges <- rbind(colonies_sf_max, colonies_sf_mean)
+# colony_ranges <- rbind(colonies_sf_max, colonies_sf_mean)
+# 
+# ggplot() + 
+#   geom_raster(data = chagos_bathy_fort, aes(x=x, y=y, fill=z), alpha = 0.8) +
+#   scale_x_continuous(limits = c(67.5, 76.4), expand = c(0,0))+
+#   scale_y_continuous(expand = c(-0.05,-0.05))+
+#   geom_path(data = MPA, aes(x = Long, y = Lat), inherit.aes = FALSE, col = "grey90", lwd = 0.6)+
+#   scale_fill_viridis_c(option="mako", "Depth (m)") + 
+#   new_scale_fill() +
+#   geom_sf(data = colony_ranges, aes(col = Colony_f, lty = Range), fill = NA, lwd = 0.5)+
+#   scale_color_manual(values = col_values, "Colony",
+#                      #labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
+#                      guide="none") +
+#   scale_linetype_manual(values = c("dotdash", "dashed"), guide = "none")
+
+
+colony_ranges <- colonies_sf_mean
 
 ggplot() + 
   geom_raster(data = chagos_bathy_fort, aes(x=x, y=y, fill=z), alpha = 0.8) +
@@ -106,22 +135,15 @@ ggplot() +
   geom_path(data = MPA, aes(x = Long, y = Lat), inherit.aes = FALSE, col = "grey90", lwd = 0.6)+
   scale_fill_viridis_c(option="mako", "Depth (m)") + 
   new_scale_fill() +
-  geom_sf(data = colony_ranges, aes(col = Colony, lty = Range), fill = NA, lwd = 0.5)+
-  # scale_colour_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
-  #                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
-  #                    guide="none") +
-  # scale_fill_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
-  #                  labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
-  #                  guide="none") +
-  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
-                     guide="none") +
-  scale_linetype_manual(values = c("dotdash", "dashed"), guide = "none")
+  geom_sf(data = colony_ranges, aes(col = Colony_f), linetype = "dashed", fill = NA, lwd = 0.5)+
+  scale_color_manual(values = col_values, "Colony",
+                     #labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
+                     guide="none")
 
 ####### kernel areas #######
 
-for (j in unique(RFB_trips$Colony)){
-  RFBsp <- RFB_trips[RFB_trips$Colony == j,c("Longitude", "Latitude", "Colony")]
+for (j in unique(RFB_trips$Colony_f)){
+  RFBsp <- RFB_trips[RFB_trips$Colony_f == j,c("Longitude", "Latitude", "Colony")]
   colnames(RFBsp)[3] <- "id"
   coordinates(RFBsp) <- c("Longitude", "Latitude")
   RFBsf <- st_as_sfc(RFBsp)
@@ -146,17 +168,18 @@ for (j in unique(RFB_trips$Colony)){
   RFB_kernel_95 <- getverticeshr(RFB_UD, percent = c(95)) %>% fortify() %>% mutate(id = j, group = paste0(j,"_95"), percent = 95)
   
   kernel_df <- do.call(rbind, lapply(ls(pattern = "RFB_kernel_"), get))
-  kernel_df$Colony <- j
+  kernel_df$Colony_f <- j
   
   write_csv(kernel_df, paste0("Data/kernels/kernel_",j, ".csv" ))
   
 }
 
-kernel_df_DG <- read_csv("Data/kernels/kernel_DG.csv")
+kernel_df_BP <- read_csv("Data/kernels/kernel_BP.csv")
+kernel_df_EI <- read_csv("Data/kernels/kernel_EI.csv")
 kernel_df_NI <- read_csv("Data/kernels/kernel_NI.csv")
 kernel_df_DI <- read_csv("Data/kernels/kernel_DI.csv")
 
-kernel_df <- rbind(kernel_df_DG, kernel_df_NI, kernel_df_DI)
+kernel_df <- rbind(kernel_df_BP, kernel_df_EI, kernel_df_NI, kernel_df_DI)
 head(kernel_df)
 
 sf_col <- sf::st_as_sf(kernel_df, coords = c("long", "lat"))
@@ -168,7 +191,7 @@ sf_col_ll <- st_transform(sf_col, 4326)
 sf_col_ll_poly = st_sf(
   aggregate(
     sf_col_ll$geometry,
-    list(sf_col_ll$piece, sf_col_ll$percent, sf_col_ll$Colony),
+    list(sf_col_ll$piece, sf_col_ll$percent, sf_col_ll$Colony_f),
     function(g){
       st_cast(st_combine(g),"POLYGON")
     }
@@ -176,6 +199,7 @@ sf_col_ll_poly = st_sf(
 
 sf_col_ll_poly.o <- sf_col_ll_poly[order(-sf_col_ll_poly$Group.2),]
 sf_col_ll_poly.o$Group.2 <- as.factor(sf_col_ll_poly.o$Group.2)
+sf_col_ll_poly.o$Group.3 = factor(sf_col_ll_poly.o$Group.3, levels = c("BP", "EI", "DI", "NI"))
 
 map_kernel <- ggplot() + 
   geom_raster(data = chagos_bathy_fort, aes(x=x, y=y, fill=z), alpha = 0.8) +
@@ -191,15 +215,14 @@ map_kernel <- ggplot() +
   # scale_fill_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
   #                  labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
   #                  guide="none") +
-  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
+  scale_color_manual(values = col_values, "Colony",
+                     #labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
                      guide="none") +
-  scale_fill_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
+  scale_fill_manual(values = col_values, "Colony",
+                     #labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
                      guide="none") +
   scale_alpha_discrete(limits = rev(levels(sf_col_ll_poly.o$Group.2)),"% UD",range = c(0.1, 1))+
-  geom_sf(data = colony_ranges, aes(col = Colony, lty = Range), fill = NA, lwd = 0.75)+
-  scale_linetype_manual(values = c("dotted", "dashed"), guide = "none")+
+  geom_sf(data = colony_ranges, aes(col = Colony_f), fill = NA, lwd = 0.75, linetype = "dashed")+
   #guides(fill = guide_legend(override.aes = list(alpha = 1)))+
   #geom_point(data = RFBcols, aes(x = lon, y = lat), inherit.aes = FALSE, cex = 0.5, col = "gray40")+
   geom_point(data = RFBcols_group, aes(x = lon, y = lat, cex = no.RFB), inherit.aes = FALSE, col = "gray40")+
@@ -229,14 +252,9 @@ trackmap2 <- ggplot() +
   geom_point(data = RFBcols_group, aes(x = lon, y = lat, cex = no.RFB), inherit.aes = FALSE, col = "gray40")+
   scale_size_continuous("Colony size")+
   geom_sf(data = sf_col_ll_poly.o, aes(col = Group.3, fill = Group.3, alpha = Group.2), lwd = 0.4)+
-  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
-                     guide="none") +
-  scale_fill_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
-                    guide="none") +
-  geom_sf(data = colony_ranges, aes(col = Colony, lty = Range), fill = NA, lwd = 0.75)+
-  scale_linetype_manual(values = c("dotted", "dashed"), name = "Range")+
+  scale_color_manual(values = col_values, "Colony", labels = col_labs, guide="none") +
+  scale_fill_manual(values = col_values, "Colony", labels = col_labs, guide="none") +
+  geom_sf(data = colony_ranges, aes(col = Colony_f), fill = NA, lwd = 0.75, linetype = "dashed")+
   geom_raster(data = chagos_bathy_fort, aes(x=x, y=y), fill = "white") +
   scale_alpha_discrete(limits = rev(levels(sf_col_ll_poly.o$Group.2)),"% UD",range = c(0.1, 1))+
   new_scale_fill() +
@@ -251,11 +269,10 @@ trackmap2 <- ggplot() +
   # geom_path(data = RFB_trips[RFB_trips$ColYear == "NI_2018",], aes(x = Longitude, y = Latitude, group = TripID, colour = ColYear), alpha = 0.6) + 
   # scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
   #                    labels = c("Diego Garcia\n(ALL)", "Danger Island\n(2019)", "Nelson's Island\n(2018)", "Nelson's Island\n(2019)")) + 
-  geom_path(data = RFB_trips, aes(x = Longitude, y = Latitude, group = TripID, colour = Colony), alpha = 0.75) + 
+  geom_path(data = RFB_trips, aes(x = Longitude, y = Latitude, group = TripID, colour = Colony_f), alpha = 0.75) + 
   # scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
   #                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island")) + 
-  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island")) + 
+  scale_color_manual(values = col_values, "Colony", labels = col_labs) + 
   guides(colour = guide_legend(override.aes = list(alpha = 1),order = 1),
          alpha = guide_legend(order = 2),
          linetype = guide_legend(order = 3),
@@ -267,35 +284,35 @@ trackmap2 <- ggplot() +
   
 trackmap2
 
-# Angles #####
+# Angle plot #####
 
-angles.plot <- read.csv("/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/DepartureAngles.csv", as.is = T)
-angles.plot$ColonyLong <- as.factor(angles.plot$Colony)
-levels(angles.plot$ColonyLong)
-levels(angles.plot$ColonyLong) <- c("Diego Garcia", "Danger Island", "Nelson's Island")
+angles.plot <- read.csv("Data/DepartureAngles.csv", as.is = T)
+angles.plot$Colony_f <- factor(angles.plot$Colony_f, levels = c("BP", "EI", "DI", "NI"))
+levels(angles.plot$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
+unique(angles.plot$Colony_f)
 
 arrowdf <- data.frame(
-  ColonyLong = as.factor(c("Diego Garcia", "Diego Garcia","Danger Island", "Nelson's Island","Nelson's Island")),
-  Colony = c("DG", "DG","DI", "NI", "NI"),
-  x = c(135,315,135,315,135),
-  xend= c(135,315,135,315,135)
+  Colony_f = c("DG - BP", "DG - BP", "DG - EI", "DI", "NI", "NI"),
+  x = c(135,315,135,135,315,135),
+  xend= c(135,315,135,135,315,135)
 )
 
-angle.plot <- ggplot(subset(angles.plot, distance == "max dist"), aes(x = theta, group = Colony, fill = Colony)) + 
+angle.plot <- ggplot(subset(angles.plot, distance == "max dist"), aes(x = theta, group = Colony_f, fill = Colony_f)) + 
   geom_histogram(binwidth = 5) +
   scale_x_continuous(breaks=seq(0, 330, by=30), expand=c(0,0), lim=c(0, 360),
                      labels = c("90", " ", " ", "0/360", " ", " ", "270", " ", " ", "180", " ", " ")) +
-  coord_polar(start = -1.57, direction=-1) +
+  coord_polar(start = -1.57, direction=-1, clip = "off") +
   geom_segment(data = arrowdf, 
                aes(x = x, xend = xend, y = Inf, yend = 13), 
                colour = "grey30", size = 0.5, arrow = arrow(length = unit(.2,"cm")))+
   theme_minimal() + 
   ylim(0, 18) +
   xlab(NULL)+ylab(NULL) + 
-  scale_fill_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island"), guide = "none") + 
-  facet_grid(ColonyLong~.) +
-  theme(panel.grid.minor.x = element_blank(),panel.grid.minor.y = element_blank())
+  scale_fill_manual(values = col_values, "Colony",
+                     labels = col_labs, guide = "none") + 
+  facet_grid(Colony_f~.) +
+  #scale_y_log10()+
+  theme(panel.grid.minor.x = element_blank(),panel.grid.minor.y = element_blank(), axis.text.y = element_text(hjust = 0.5))
 angle.plot
 
 # Combine plots #####
@@ -316,16 +333,150 @@ t <- ggdraw() +
   )
 
 
+p1 <- trackmap2
+p2 <- map_kernel
+p3 <- angle.plot+theme(plot.margin = margin(0,0,0,0))
+pinset <- gg_inset_map
 
-png("Figures/Tracks.png",width = 21, height = 20, units = "cm", res = 300)
+
+design <- "
+ 134
+ 234
+"
+
+plotcombo <- p1 + inset_element(pinset, left = 0.06, bottom = 0.65, right = 0.45, top = 0.95) + p2 + p3 + guide_area() + 
+  plot_layout(design = design, guides = "collect", widths = c(1.5,1,0.6)) + 
+  plot_annotation(tag_levels = list(c("a", "", "b", "c"))) & 
+  theme(plot.tag.position = c(0, 0.95), plot.tag = element_text(size = 14, hjust = 0, vjust = 0, face = "bold"))
+
+t <- ggdraw() +
+  draw_plot(plotcombo) +
+  draw_image(
+    RFBimg, x = 1, y = 1, hjust = 1, vjust = 1, valign = 0,
+    width = 0.23
+  )
+
+
+png("Figures/Tracks.png",width = 24, height = 22, units = "cm", res = 300)
 print(t)
 dev.off()
 
 
+# plot tracks by intra-col levels #####
+sex_values <- brewer.pal(7, "Greens")[c(6,3)]
+triplength_values <- brewer.pal(8, "Blues")[c(7,4)]
+monsoon_values <- brewer.pal(8, "YlOrBr")[c(7,4)]
+brstage_values <- brewer.pal(8, "Purples")[c(7,4)]
+FE_levels <- c("Monsoon", "Sex", "Breeding Stage", "Trip length")
+
+colonies$Colony_f <- factor(colonies$Colony, levels = c("BP", "EI", "DI", "NI"))
+levels(colonies$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
+
+# tracks ~ sex ####
+RFB_trips_knownsex <- RFB_trips %>%
+  filter(Sex %in% c("F", "M")) %>%
+  dplyr::select(Colony_f, Longitude, Latitude, TripID, Sex) %>%
+  mutate(FE = factor("Sex", levels = FE_levels),
+         Colony_f = factor(Colony_f, levels = c("BP", "EI", "DI", "NI")))
+
+levels(RFB_trips_knownsex$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
 
 
 
 
+# tracks ~ triplength ####
+RFB_tripmetrics <- read_csv("Data/RFB_2016-2023_tripmetrics.csv") %>%
+  mutate(trip_length_days = case_when(Trip_duration > 24 ~ "Multi-day", .default = "Single day"),
+         colony_sub = case_when(Colony == "DG" & Year != 2022 ~ "BP",
+                                Colony == "DG" & Year == 2022 ~ "EI", 
+                                .default = Colony))
+
+RFB_trips_tripmetrics <- RFB_trips %>%
+  left_join(., RFB_tripmetrics) %>%
+  mutate(FE = factor("Trip length", levels = FE_levels),
+         Colony_f = factor(colony_sub, levels = c("BP", "EI", "DI", "NI"))) %>%
+  dplyr::select(Colony_f, Longitude, Latitude, TripID, trip_length_days, FE)
+  
+levels(RFB_trips_tripmetrics$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
+
+
+# tracks ~ monsoon ####
+RFB_trips_monsoon <- RFB_trips %>%
+  dplyr::select(Colony_f, Longitude, Latitude, TripID, Monsoon) %>%
+  mutate(FE = factor("Monsoon", levels = FE_levels),
+         Colony_f = factor(Colony_f, levels = c("BP", "EI", "DI", "NI")))
+
+levels(RFB_trips_monsoon$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
+
+
+# tracks ~ brstage ####
+RFB_trips_brstage <- RFB_trips %>%
+  filter(Breed_Stage %in% c("chick-rearing", "incubation")) %>%
+  dplyr::select(Colony_f, Longitude, Latitude, TripID, Breed_Stage) %>%
+  mutate(FE = factor("Breeding Stage", levels = FE_levels),
+         Colony_f = factor(Colony_f, levels = c("BP", "EI", "DI", "NI")))
+
+levels(RFB_trips_brstage$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
+
+# tracks ~ intracol plot ####
+trackmap_intracol <- ggplot() + 
+  scale_x_continuous(expand = c(0.05,0.05))+
+  scale_y_continuous(expand = c(0.05,0.05))+
+  geom_sf(data = filter(chagos, DEPTHLABEL == "land"), inherit.aes = FALSE, fill = NA, col = "grey30", lwd = 0.6)+
+  geom_path(data = RFB_trips_knownsex, aes(x = Longitude, y = Latitude, group = TripID, colour = Sex), alpha = 0.6) + 
+  scale_colour_manual(values = sex_values, labels = c("Female","Male")) + 
+  new_scale_color() +
+  geom_path(data = RFB_trips_tripmetrics, aes(x = Longitude, y = Latitude, group = TripID, colour = trip_length_days), alpha = 0.6) + 
+  scale_colour_manual(values = triplength_values, name = "Trip length") + 
+  new_scale_color() +
+  geom_path(data = RFB_trips_monsoon, aes(x = Longitude, y = Latitude, group = TripID, colour = Monsoon), alpha = 0.6) + 
+  scale_colour_manual(values = monsoon_values, name = "Monsoon season") + 
+  new_scale_color() +
+  geom_path(data = RFB_trips_brstage, aes(x = Longitude, y = Latitude, group = TripID, colour = Breed_Stage), alpha = 0.6) + 
+  scale_colour_manual(values = brstage_values, name = "Breeding stage", labels = c("Chick-rearing", "Incubation")) + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1)))+
+  geom_point(data = colonies, aes(x = Long, y = Lat), inherit.aes = FALSE, cex = 1)+
+  theme_minimal() +
+  theme(panel.border = element_rect(fill = NA, colour = "gray"), 
+        panel.grid = element_blank(),
+        legend.key.size = unit(0.8, "cm"), axis.text.x=element_text(angle = 90, hjust = 0))+
+  facet_grid(Colony_f~FE)
+
+
+png("Figures/Tracks_intracol.png",width = 21, height = 15, units = "cm", res = 300)
+print(trackmap_intracol)
+dev.off()
+
+
+# DG map ####
+BP <- colonies %>%
+  filter(Colony == "BP") %>%
+  dplyr::select(Long, Lat)
+
+EI <- colonies %>%
+  filter(Colony == "EI") %>%
+  dplyr::select(Long, Lat)
+
+library(ggspatial)
+
+DG_plot <- ggplot() + 
+  scale_x_continuous(limits = c(BP$Long-0.1, BP$Long+0.1), expand = c(0,0))+
+  scale_y_continuous(limits = c(-7.47, -7.21), expand = c(0,0))+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("land")), inherit.aes = FALSE, fill = "grey50", col = "grey30", lwd = 0.6)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("shallow")), inherit.aes = FALSE, fill = "gray80", col = NA)+
+  geom_rect(aes(xmin = (EI$Long - 0.005), xmax = (EI$Long + 0.006), ymin = (EI$Lat - 0.004), ymax = (EI$Lat + 0.003)), inherit.aes = F, col = col_values[2], fill = NA)+
+  annotate("text", label = "East Island", x = (EI$Long - 0.02), y = (EI$Lat + 0.01), col = col_values[2])+
+  geom_rect(aes(xmin = (BP$Long - 0.005), xmax = (BP$Long + 0.03), ymin = (BP$Lat - 0.03), ymax = (BP$Lat + 0.003)), inherit.aes = F, col = col_values[1], fill = NA)+
+  annotate("text", label = "Barton\nPoint", x = (BP$Long + 0.032), y = (BP$Lat-0.01), col = col_values[1], hjust = 0)+
+  theme_minimal()+
+  theme(panel.border = element_rect(fill = NA))+
+  annotation_scale(style = "ticks")+
+  ylab(NULL)+
+  xlab(NULL)
+
+png("Figures/Supp_DGmap.png",width = 8, height = 10, units = "cm", res = 300)
+print(DG_plot)
+dev.off()
 
 ##### kernel overlap #####
 
@@ -536,12 +687,12 @@ write.csv(BA2019, "Data/kernels/BAvalues_2019.csv", row.names = T)
 
 #### angles at different track segments ####
 
-angles$distance <- as.factor(angles$distance)
-levels(angles$distance)
-angles$distance <- fct_relevel(angles$distance, "1km", "5km", "10km", "25km", "max dist")
+angles.plot$distance <- as.factor(angles.plot$distance)
+levels(angles.plot$distance)
+angles.plot$distance <- fct_relevel(angles.plot$distance, "1km", "5km", "10km", "25km", "max dist")
 
 
-supp.angle.plot <- ggplot(angles, aes(x = theta, group = Colony, fill = Colony)) + 
+supp.angle.plot <- ggplot(angles.plot, aes(x = theta, group = Colony_f, fill = Colony_f)) + 
   geom_histogram(binwidth = 5) +
   scale_x_continuous(breaks=seq(0, 330, by=30), expand=c(0,0), lim=c(0, 360),
                      labels = c("90", " ", " ", "0/360", " ", " ", "270", " ", " ", "180", " ", " ")) +
@@ -550,14 +701,13 @@ supp.angle.plot <- ggplot(angles, aes(x = theta, group = Colony, fill = Colony))
   theme_minimal() + 
   ylim(0, 18) +
   xlab(NULL)+
-  scale_fill_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island")) + 
-  facet_grid(ColonyLong~distance) +
+  scale_fill_manual(values = col_values, "Colony", labels = col_labs) + 
+  facet_grid(Colony_f~distance) +
   theme(panel.grid.minor.x = element_blank(),panel.grid.minor.y = element_blank(),
         legend.position = "bottom", axis.text.x = element_text(size = 7))
 supp.angle.plot
 
-png("/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Plots/Distance_depAngle.png",width = 22, height = 16, units = "cm", res = 300)
+png("Figures/Supp_Distance_depAngle.png",width = 22, height = 18, units = "cm", res = 300)
 print(supp.angle.plot)
 dev.off()
 

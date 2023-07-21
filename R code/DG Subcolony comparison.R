@@ -1,7 +1,7 @@
 library(sjPlot)
 library(patchwork)
 
-## Potential difference between Diego Garcia sub-colonies
+## Potential spatial difference between Diego Garcia sub-colonies
 
 DG <- read_csv("Data/RFB_2016-2023.csv") %>%
   filter(Colony == "DG") %>%
@@ -149,8 +149,16 @@ DG_trips_plot <- ggplot(trips.long, aes(x = Sub_colony, y = value))+
 
 
 
-DG_subcol <- DG_tracks_plot + DG_trips_plot + plot_layout(guides = 'collect') & theme(legend.position = "bottom") 
+DG_subcol <- DG_tracks_plot + DG_trips_plot + 
+  plot_annotation(tag_levels = 'a') +
+  plot_layout(guides = 'collect') & theme(legend.position = "bottom")
 
-png("Figures/Supp_DG_subcol.png",width = 22, height = 16, units = "cm", res = 300)
+png("Figures/Supp_DG_subcol.png",width = 22, height = 14, units = "cm", res = 300)
 print(DG_subcol)
 dev.off()
+
+DG_unknownsex <- DG %>% 
+  group_by(BirdID) %>%
+  filter(Sex == "unknown") %>%
+  distinct(BirdID, Year)
+write_csv(DG_unknownsex, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/DG_unknownsex.csv")

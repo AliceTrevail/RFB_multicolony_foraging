@@ -3,6 +3,11 @@ library(lme4)
 library(lubridate)
 library(MuMIn)
 library(tidyverse)
+library(here)
+library(sjPlot)
+library(broom.mixed)
+library(ggeffects)
+library(flextable)
 options(na.action = na.fail)
 
 
@@ -27,11 +32,13 @@ hist(log(RFB_tripmetrics$Max_distance))
 RFB_complete <- RFB_tripmetrics %>%
   filter(Completetrip == "Complete") %>%
   mutate(year_f = as.factor(Year),
-         log_duration = log10(Trip_duration),
-         log_totdist = log10(Total_distance),
-         log_maxdist = log10(Max_distance),
-         col_yr = paste0(colony_sub, "_", year_f),
-         colony_sub_f = factor(colony_sub, levels = c("EI", "BP", "NI", "DI")))
+         log_duration = log(Trip_duration),
+         log_totdist = log(Total_distance),
+         log_maxdist = log(Max_distance),
+         Breed_Stage = factor(Breed_Stage, 
+                              levels = c("chick-rearing", "incubation", "pre-egg", "breeding")),
+         Colony_f = factor(colony_sub, 
+                              levels = c("BP", "EI", "DI", "NI")))
 
 
 
@@ -40,386 +47,177 @@ RFB_complete <- RFB_tripmetrics %>%
 #------------------------------------#
 # trip duration ####
 
-m.logduration <- lmerTest::lmer(log_duration ~ colony_sub + Monsoon + (1|year_f) + (1|Sex) + (1|Breed_Stage) + (1|BirdID), 
+m.logduration <- lmerTest::lmer(log_duration ~ Colony_f + Monsoon + Sex + Breed_Stage + (1|year_f) + (1|BirdID), 
+                                data = RFB_complete, REML = T)
+summary(m.logduration)
+
+# Save model output
+t.logduration <- as_flextable(m.logduration) %>%
+  align(align = 'left', j = c(1), part = 'body') %>%
+  bg(bg = "grey90", i = c(1,12), part = "body") %>%
+  fontsize(size = 9, part = 'all')%>%
+  autofit()
+t.logduration
+save_as_docx(t.logduration, path = here("Tables", "Supplementary_mod_output_duration.docx"), align = 'center')
+
+# Save model estimates
+p.logduration_col <- as.data.frame(ggemmeans(m.logduration, terms = c("Colony_f")))
+p.logduration_sex <- as.data.frame(ggemmeans(m.logduration, terms = c("Sex")))
+p.logduration <- bind_rows(p.logduration_col, p.logduration_sex) %>%
+  mutate(TripMetric = "TripDuration")
+
+
+
+# total distance ####
+
+m.logtotdist <- lmerTest::lmer(log_totdist ~ Colony_f + Monsoon + Sex + Breed_Stage + (1|year_f) + (1|BirdID), 
                                 data = RFB_complete, REML = T)
 
-step_logduration <- lmerTest::step(m.logduration, reduce.random = F)
-step_logduration # Display elimination results
+summary(m.logtotdist)
 
-final_logduration <- lmerTest::get_model(step_logduration)
-final_logduration
-qqnorm(resid(final_logduration))
-qqline(resid(final_logduration))
+# Save model output
+t.logtotdist <- as_flextable(m.logtotdist) %>%
+  align(align = 'left', j = c(1), part = 'body') %>%
+  bg(bg = "grey90", i = c(1,12), part = "body") %>%
+  fontsize(size = 9, part = 'all')%>%
+  autofit()
+t.logtotdist
+save_as_docx(t.logtotdist, path = here("Tables", "Supplementary_mod_output_totdist.docx"), align = 'center')
 
-summary(final_logduration)
-plot(ggeffects::ggeffect(final_logduration))
-
-
-
-# trip duration ####
-
-m.logtotdist <- lmerTest::lmer(log_totdist ~ colony_sub + Monsoon + (1|year_f) + (1|Sex) + (1|Breed_Stage) + (1|BirdID), 
-                                data = RFB_complete, REML = T)
-
-step_logtotdist <- lmerTest::step(m.logtotdist, ddf="Kenward-Roger", reduce.random = F)
-step_logtotdist # Display elimination results
-
-final_logtotdist <- lmerTest::get_model(step_logtotdist)
-final_logtotdist
-qqnorm(resid(final_logtotdist))
-qqline(resid(final_logtotdist))
-
-summary(final_logtotdist)
-plot(ggeffects::ggpredict(final_logtotdist))
+# Save model estimates
+p.logtotdist_col <- as.data.frame(ggemmeans(m.logtotdist, terms = c("Colony_f")))
+p.logtotdist_sex <- as.data.frame(ggemmeans(m.logtotdist, terms = c("Sex")))
+p.logtotdist <- bind_rows(p.logtotdist_col, p.logtotdist_sex) %>%
+  mutate(TripMetric = "TotalDistance")
 
 
-# trip duration ####
 
-m.logmaxdist <- lmerTest::lmer(log_maxdist ~ colony_sub + Monsoon + (1|year_f) + (1|Sex) + (1|Breed_Stage) + (1|BirdID), 
+# max distance ####
+
+m.logmaxdist <- lmerTest::lmer(log_maxdist ~ Colony_f + Monsoon + Sex + Breed_Stage + (1|year_f) + (1|BirdID), 
                                data = RFB_complete, REML = T)
 
-step_logmaxdist <- lmerTest::step(m.logmaxdist, ddf="Kenward-Roger", reduce.random = F)
-step_logmaxdist # Display elimination results
+summary(m.logmaxdist)
 
-final_logmaxdist <- lmerTest::get_model(step_logmaxdist)
-final_logmaxdist
-qqnorm(resid(final_logmaxdist))
-qqline(resid(final_logmaxdist))
+# Save model output
+t.logmaxdist <- as_flextable(m.logmaxdist) %>%
+  align(align = 'left', j = c(1), part = 'body') %>%
+  bg(bg = "grey90", i = c(1,12), part = "body") %>%
+  fontsize(size = 9, part = 'all')%>%
+  autofit()
+t.logmaxdist
+save_as_docx(t.logmaxdist, path = here("Tables", "Supplementary_mod_output_maxdist.docx"), align = 'center')
 
-summary(final_logmaxdist)
-plot(ggeffects::ggpredict(final_logmaxdist))
-
-######################### analyses pre-new data ################
-#------------------------------------#
-# within-colony differences at DG ####
-#------------------------------------#
-DG_complete <- RFB_complete %>%
-  filter(Colony == "DG")
-
-# trip duration ####
-
-m.DG.logduration <- lmer(log_duration ~ year_f + Monsoon + Sex + Breed_Stage + (1|BirdID), data = DG_complete)
-qqnorm(resid(m.DG.logduration))
-qqline(resid(m.DG.logduration))
-
-summary(m.DG.logduration)
-d.DG.logduration <- dredge(m.DG.logduration)
-
-d.DG.logduration.out <- d.DG.logduration  %>%
-  tibble() %>%
-  filter(delta < 2) %>%
-  mutate(Colony = "DG", Trip_metric = "Trip duration", .before = Breed_Stage)
+# Save model estimates
+p.logmaxdist_col <- as.data.frame(ggemmeans(m.logmaxdist, terms = c("Colony_f")))
+p.logmaxdist_sex <- as.data.frame(ggemmeans(m.logmaxdist, terms = c("Sex")))
+p.logmaxdist <- bind_rows(p.logmaxdist_col, p.logmaxdist_sex) %>%
+  mutate(TripMetric = "MaxDistance")
 
 
-# total distance ####
-
-m.DG.logtotdist <- lmer(log_totdist ~ year_f + Monsoon + Sex + Breed_Stage + (1|BirdID), data = DG_complete)
-qqnorm(resid(m.DG.logtotdist))
-qqline(resid(m.DG.logtotdist))
-
-summary(m.DG.logtotdist)
-d.DG.logtotdist <- dredge(m.DG.logtotdist)
-
-d.DG.logtotdist.out <- d.DG.logtotdist  %>%
-  tibble() %>%
-  filter(delta < 2) %>%
-  mutate(Colony = "DG", Trip_metric = "Total distance", .before = Breed_Stage)
+# Combine model estimates ####
 
 
-# max distance ####
+p.tripmetrics <- bind_rows(p.logduration, p.logtotdist, p.logmaxdist) %>%
+  mutate(FE = case_when(x %in% c("BP", "EI", "DI", "NI") ~ "Colony",
+                        .default = "Sex"),
+         predicted_invlog = exp(predicted),
+         conf.low_invlog = exp(conf.low),
+         conf.high_invlog = exp(conf.high)) %>%
+  arrange(FE, TripMetric, x)
 
-m.DG.logmaxdist <- lmer(log_maxdist ~ year_f + Monsoon + Sex + Breed_Stage + (1|BirdID), data = DG_complete)
-qqnorm(resid(m.DG.logmaxdist))
-qqline(resid(m.DG.logmaxdist))
+p.tripmetrics
+write_csv(p.tripmetrics, "Data/mod_estimates_tripmetrics.csv")
 
-summary(m.DG.logmaxdist)
-d.DG.logmaxdist <- dredge(m.DG.logmaxdist)
 
-d.DG.logmaxdist.out <- d.DG.logmaxdist  %>%
-  tibble() %>%
-  filter(delta < 2) %>%
-  mutate(Colony = "DG", Trip_metric = "Max distance", .before = Breed_Stage)
 
-#------------------------------------#
-# within-colony differences at NI ####
-#------------------------------------#
+#------------------------------------###
+# model single days ####
+#------------------------------------###
 
-NI_complete <- RFB_complete %>%
-  filter(Colony == "NI")
+# subset to complete trips 
+RFB_single <- RFB_complete %>%
+  filter(Trip_duration <24) 
 
 # trip duration ####
 
-m.NI.logduration <- lmer(log_duration ~ year_f + Monsoon + Sex + Breed_Stage + (1|BirdID), data = NI_complete)
-qqnorm(resid(m.NI.logduration))
-qqline(resid(m.NI.logduration))
+m_single.logduration <- lmerTest::lmer(log_duration ~ Colony_f + Monsoon + Sex + Breed_Stage + (1|year_f) + (1|BirdID), 
+                                data = RFB_single, REML = T)
+summary(m_single.logduration)
 
-summary(m.NI.logduration)
-d.NI.logduration <- dredge(m.NI.logduration)
+# Save model output
+t_single.logduration <- as_flextable(m_single.logduration) %>%
+  align(align = 'left', j = c(1), part = 'body') %>%
+  bg(bg = "grey90", i = c(1,12), part = "body") %>%
+  fontsize(size = 9, part = 'all')%>%
+  autofit()
+t_single.logduration
 
-d.NI.logduration.out <- d.NI.logduration  %>%
-  tibble() %>%
-  filter(delta < 2) %>%
-  mutate(Colony = "NI", Trip_metric = "Trip duration", .before = Breed_Stage)
+# Save model estimates
+p_single.logduration_col <- as.data.frame(ggemmeans(m_single.logduration, terms = c("Colony_f")))
+p_single.logduration_sex <- as.data.frame(ggemmeans(m_single.logduration, terms = c("Sex")))
+p_single.logduration <- bind_rows(p_single.logduration_col, p_single.logduration_sex) %>%
+  mutate(TripMetric = "TripDuration")
+
 
 
 # total distance ####
 
-m.NI.logtotdist <- lmer(log_totdist ~ year_f + Monsoon + Sex + Breed_Stage + (1|BirdID), data = NI_complete)
-qqnorm(resid(m.NI.logtotdist))
-qqline(resid(m.NI.logtotdist))
+m_single.logtotdist <- lmerTest::lmer(log_totdist ~ Colony_f + Monsoon + Sex + Breed_Stage + (1|year_f) + (1|BirdID), 
+                               data = RFB_single, REML = T)
 
-summary(m.NI.logtotdist)
-d.NI.logtotdist <- dredge(m.NI.logtotdist)
+summary(m_single.logtotdist)
 
-d.NI.logtotdist.out <- d.NI.logtotdist  %>%
-  tibble() %>%
-  filter(delta < 2) %>%
-  mutate(Colony = "NI", Trip_metric = "Total distance", .before = Breed_Stage)
+# Save model output
+t_single.logtotdist <- as_flextable(m_single.logtotdist) %>%
+  align(align = 'left', j = c(1), part = 'body') %>%
+  bg(bg = "grey90", i = c(1,12), part = "body") %>%
+  fontsize(size = 9, part = 'all')%>%
+  autofit()
+t_single.logtotdist
 
-
-# max distance ####
-
-m.NI.logmaxdist <- lmer(log_maxdist ~ year_f + Monsoon + Sex + Breed_Stage + (1|BirdID), data = NI_complete)
-qqnorm(resid(m.NI.logmaxdist))
-qqline(resid(m.NI.logmaxdist))
-
-summary(m.NI.logmaxdist)
-d.NI.logmaxdist <- dredge(m.NI.logmaxdist)
-
-d.NI.logmaxdist.out <- d.NI.logmaxdist  %>%
-  tibble() %>%
-  filter(delta < 2) %>%
-  mutate(Colony = "NI", Trip_metric = "Max distance", .before = Breed_Stage)
-
-
-# save inter-colony model selection ####
-
-d.intracol.out <- bind_rows(d.DG.logduration.out, d.DG.logtotdist.out, d.DG.logmaxdist.out,
-                            d.NI.logduration.out, d.NI.logtotdist.out, d.NI.logmaxdist.out) %>%
-  dplyr::select(-c(`(Intercept)`, weight)) %>%
-  flextable() %>%
-  colformat_double(j = c(8:10), digits = 2) %>% # round numbers of specific columns to 2 decimal places
-  add_header_row(values = as_paragraph(as_chunk(c("Colony", "Trip metric", "Explanatory variables", "Model selection metrics"))), colwidths = c(1,1,4,4), top = TRUE) %>% # add header row
-  set_header_labels(Trip_metric = 'Trip metric',
-                    Breed_Stage = 'Breeding stage',
-                    year_f = 'Year') %>%
-  merge_v(j = c(1,2), part = "header") %>%
-  merge_v(~Colony) %>%
-  merge_v(~Trip_metric) %>%
-  fix_border_issues() %>%
-  valign(valign = 'top', j = c(1,2), part = 'body') %>%
-  hline(i = c(4,6,8,12,16), border = fp_border_default()) %>%
-  fontsize(size = 10, part = 'all') # set font size for the table
-d.intracol.out
-save_as_docx(d.intracol.out, path = here("Tables", "Supplementary_mod_selection_intracol.docx"), align = 'center')
-
-##### ******************* #######
-#-------------------------------#
-# between colony differences ####
-#-------------------------------#
-
-m.all.logduration <- lmer(log_duration ~ Colony * year_f + (1|BirdID), data = RFB_complete)
-qqnorm(resid(m.all.logduration))
-qqline(resid(m.all.logduration))
-
-summary(m.all.logduration)
-d.all.logduration <- dredge(m.all.logduration)
-
-d.all.logduration.out <- d.all.logduration  %>%
-  tibble() %>%
-  mutate(Trip_metric = "Trip duration", .before = Colony)
-d.all.logduration.out
-
-plot_model(m.all.logduration)
-plot_model(m.all.logduration, type = "pred", show.data = T, jitter = T)
-param.logdur <- as.data.frame(get_model_data(m.all.logduration, type = "pred", plot = F)$ColYear)
-param.logdur$trip.metric <- "TripDuration"
-param.logdur$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
-
-# total distance ####
-
-m.all.logtotdist <- lmer(log_totdist ~ Colony * year_f + (1|BirdID), data = RFB_complete)
-qqnorm(resid(m.all.logtotdist))
-qqline(resid(m.all.logtotdist))
-
-summary(m.all.logtotdist)
-d.all.logtotdist <- dredge(m.all.logtotdist)
-
-d.all.logtotdist.out <- d.all.logtotdist  %>%
-  tibble() %>%
-  mutate(Trip_metric = "Total distance", .before = Colony)
-d.all.logtotdist.out
-
-
-plot_model(m.all.logTotDistance)
-plot_model(m.all.logTotDistance, type = "pred", show.data = T, jitter = T)
-param.totdist <- as.data.frame(get_model_data(m.all.logTotDistance, type = "pred", plot = F)$ColYear)
-param.totdist$trip.metric <- "TotalDistance"
-param.totdist$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
+# Save model estimates
+p_single.logtotdist_col <- as.data.frame(ggemmeans(m_single.logtotdist, terms = c("Colony_f")))
+p_single.logtotdist_sex <- as.data.frame(ggemmeans(m_single.logtotdist, terms = c("Sex")))
+p_single.logtotdist <- bind_rows(p_single.logtotdist_col, p_single.logtotdist_sex) %>%
+  mutate(TripMetric = "TotalDistance")
 
 
 
 # max distance ####
 
-m.all.logmaxdist <- lmer(log_maxdist ~ Colony * year_f + (1|BirdID), data = RFB_complete)
-qqnorm(resid(m.all.logmaxdist))
-qqline(resid(m.all.logmaxdist))
+m_single.logmaxdist <- lmerTest::lmer(log_maxdist ~ Colony_f + Monsoon + Sex + Breed_Stage + (1|year_f) + (1|BirdID), 
+                               data = RFB_single, REML = T)
 
-summary(m.all.logmaxdist)
-d.all.logmaxdist <- dredge(m.all.logmaxdist)
+summary(m_single.logmaxdist)
 
-d.all.logmaxdist.out <- d.all.logmaxdist  %>%
-  tibble() %>%
-  mutate(Trip_metric = "Max distance", .before = Colony)
-d.all.logmaxdist.out
+# Save model output
+t_single.logmaxdist <- as_flextable(m_single.logmaxdist) %>%
+  align(align = 'left', j = c(1), part = 'body') %>%
+  bg(bg = "grey90", i = c(1,12), part = "body") %>%
+  fontsize(size = 9, part = 'all')%>%
+  autofit()
+t_single.logmaxdist
 
-plot_model(m.all.logMaxDistance)
-plot_model(m.all.logMaxDistance, type = "pred", show.data = T, jitter = T)
-param.maxdist <- as.data.frame(get_model_data(m.all.logMaxDistance, type = "pred", plot = F)$ColYear)
-param.maxdist$trip.metric <- "MaxDistance"
-param.maxdist$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
-
-model.estimates <- rbind(param.logdur, param.maxdist, param.totdist)
-write.csv(model.estimates, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Model selection/AllModelEstimates.csv", row.names = F)
+# Save model estimates
+p_single.logmaxdist_col <- as.data.frame(ggemmeans(m_single.logmaxdist, terms = c("Colony_f")))
+p_single.logmaxdist_sex <- as.data.frame(ggemmeans(m_single.logmaxdist, terms = c("Sex")))
+p_single.logmaxdist <- bind_rows(p_single.logmaxdist_col, p_single.logmaxdist_sex) %>%
+  mutate(TripMetric = "MaxDistance")
 
 
-# single day trips ####
-#### trip duration ####
-### run log normal models
-complete.singleday$log_duration = log10(complete.singleday$TripDuration)
-complete.singleday$ColYear <- ifelse(complete.singleday$Colony == "DG", 
-                                 paste0(complete.singleday$Colony, "_ALL"),
-                                 paste0(complete.singleday$Colony, "_", complete.singleday$Year))
-
-m.single.logduration <- lmer(log_duration ~ ColYear + (1|BirdID), data = complete.singleday)
-qqnorm(resid(m.single.logduration))
-qqline(resid(m.single.logduration))
-
-summary(m.single.logduration)
-dredge.logduration <- dredge(m.single.logduration)
-#write.csv(dredge.logduration, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Model selection/dredge.logduration_allcols.csv", row.names = F)
-
-plot_model(m.single.logduration)
-plot_model(m.single.logduration, type = "pred", show.data = T, jitter = T)
-param.sing.logdur <- as.data.frame(get_model_data(m.single.logduration, type = "pred", plot = F)$ColYear)
-param.sing.logdur$trip.metric <- "TripDuration"
-param.sing.logdur$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
+# Combine model estimates ####
 
 
-#### total distance ####
+p_single.tripmetrics <- bind_rows(p_single.logduration, p_single.logtotdist, p_single.logmaxdist) %>%
+  mutate(FE = case_when(x %in% c("BP", "EI", "DI", "NI") ~ "Colony",
+                        .default = "Sex"),
+         predicted_invlog = exp(predicted),
+         conf.low_invlog = exp(conf.low),
+         conf.high_invlog = exp(conf.high)) %>%
+  arrange(FE, TripMetric, x)
 
-complete.singleday$log_TotDistance = log10(complete.singleday$TotalDistance)
-
-
-m.single.logTotDistance <- lmer(log_TotDistance ~ ColYear + (1|BirdID), data = complete.singleday)
-qqnorm(resid(m.single.logTotDistance))
-qqline(resid(m.single.logTotDistance))
-
-summary(m.single.logTotDistance)
-dredge.logTotDistance <- dredge(m.single.logTotDistance)
-#write.csv(dredge.logTotDistance, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Model selection/dredge.logTotDistance_allcols.csv", row.names = F)
-
-plot_model(m.single.logTotDistance)
-plot_model(m.single.logTotDistance, type = "pred", show.data = T, jitter = T)
-param.sing.totdist <- as.data.frame(get_model_data(m.single.logTotDistance, type = "pred", plot = F)$ColYear)
-param.sing.totdist$trip.metric <- "TotalDistance"
-param.sing.totdist$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
+p_single.tripmetrics
+write_csv(p_single.tripmetrics, "Data/mod_estimates_tripmetrics_singleday.csv")
 
 
-
-# max distance ####
-
-complete.singleday$log_MaxDistance = log10(complete.singleday$MaxDistance)
-head(complete.singleday)
-
-m.single.logMaxDistance <- lmer(log_MaxDistance ~ ColYear + (1|BirdID), data = complete.singleday)
-qqnorm(resid(m.single.logMaxDistance))
-qqline(resid(m.single.logMaxDistance))
-
-summary(m.single.logMaxDistance)
-dredge.logMaxDistance <- dredge(m.single.logMaxDistance)
-#write.csv(dredge.logMaxDistance, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Model selection/dredge.logMaxDistance_allcols.csv", row.names = F)
-
-plot_model(m.single.logMaxDistance)
-plot_model(m.single.logMaxDistance, type = "pred", show.data = T, jitter = T)
-param.sing.maxdist <- as.data.frame(get_model_data(m.single.logMaxDistance, type = "pred", plot = F)$ColYear)
-param.sing.maxdist$trip.metric <- "MaxDistance"
-param.sing.maxdist$ColYear <- c("DG_ALL", "DI_2019", "NI_2018", "NI_2019")
-
-single.model.estimates <- rbind(param.sing.logdur, param.sing.maxdist, param.sing.totdist)
-write.csv(single.model.estimates, "/Users/at687/Documents/BIOT/Breeding data/Project1_RFB Chagos foraging ecology/Data/Model selection/SingleDayModelEstimates.csv", row.names = F)
-
-###****************####
-
-# Sample sizes ######
-
-StageYr <- complete.trips %>% 
-  filter(Colony == "NI") %>%
-  group_by(Year, Breed_Stage) %>%
-  dplyr::summarise(n = length(unique(TripID)))
-
-Sum <- ind.trips %>% 
-  dplyr::summarise(n.bird = length(unique(BirdID)),
-                   n.trip = length(unique(TripID)))
-
-Col <- ind.trips %>% 
-  group_by(Colony) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)),
-                   n.trip = length(unique(TripID)))
-
-ColYrMonsoon <- ind.trips %>% 
-  group_by(Colony, Year, Monsoon) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)),
-                   n.trip = length(unique(TripID)))
-
-
-ColYrMonsoonSex <- ind.trips %>% 
-  group_by(Colony, Year, Monsoon, Sex) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)))
-
-ColSex <- ind.trips %>% 
-  group_by(Colony, Sex) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)))
-
-SummSex <- ind.trips %>% 
-  group_by(Sex) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)))
-
-
-
-ColYrMonsoonStage <- ind.trips %>% 
-  group_by(Colony, Year, Monsoon, Breed_Stage) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)))
-
-
-ColStage <- ind.trips %>% 
-  group_by(Colony, Breed_Stage) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)))
-
-SummStage <- ind.trips %>% 
-  group_by(Breed_Stage) %>%
-  dplyr::summarise(n.bird = length(unique(BirdID)))
-
-
-###### Plot difference in trip metrics between colonies #####
-
-head(ind.trips)
-
-ggplot(complete.trips, aes(x = TripDuration))+
-  geom_histogram(bins = 120)+
-  theme_bw()+
-  geom_vline(xintercept = c(24,48,72,96,120), lty = "dashed")+
-  scale_x_continuous(limits = c(0,120), breaks = c(0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 84, 90, 96, 102, 108, 114, 120))+
-  theme(panel.grid.minor = element_blank())+
-  labs(x = "Trip Duration (hours)", y = "Frequency")
-  
-
-ggplot(complete.trips, aes(x = TripDuration))+
-  geom_histogram(bins = 50)#+
-  #facet_wrap(ColYear ~., ncol = 1, scales = "free_y")
-
-ggplot(complete.trips, aes(x = TotalDistance/2, y = MaxDistance))+
-  geom_point()+
-  geom_abline(slope=1, lty = "dashed")+
-  geom_smooth(data = subset(complete.trips, Trip_length_days == "Single day"), method = "lm", col = "red")+
-  geom_smooth(data = subset(complete.trips, Trip_length_days == "Multi-day"), method = "lm", col = "blue")
