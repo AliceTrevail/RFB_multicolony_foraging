@@ -419,6 +419,13 @@ RFB_trips_brstage <- RFB_trips %>%
 levels(RFB_trips_brstage$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
 
 # tracks ~ intracol plot ####
+BA_IC <- read_csv("Data/kernels/BAvalues_Intracol.csv") %>%
+  mutate(Colony_f = factor(Colony_f, levels = c("BP", "EI", "DI", "NI")),
+         BA_text = paste0("BA = ", formatC(BA, digits = 2, format = "f")),
+         FE = factor(FE, levels = FE_levels))
+levels(BA_IC$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
+BA_IC
+
 trackmap_intracol <- ggplot() + 
   scale_x_continuous(expand = c(0.05,0.05))+
   scale_y_continuous(expand = c(0.05,0.05))+
@@ -440,11 +447,39 @@ trackmap_intracol <- ggplot() +
   theme(panel.border = element_rect(fill = NA, colour = "gray"), 
         panel.grid = element_blank(),
         legend.key.size = unit(0.8, "cm"), axis.text.x=element_text(angle = 90, hjust = 0))+
-  facet_grid(Colony_f~FE)
+  facet_grid(Colony_f~FE, order = FE_levels)+
+  geom_text(data = BA_IC, mapping = aes(x = -Inf, y = -Inf, label = BA_text), fontface=2, hjust = -0.1, vjust = -0.5, cex = 2.8)
 
 
 png("Figures/Tracks_intracol.png",width = 21, height = 15, units = "cm", res = 300)
 print(trackmap_intracol)
+dev.off()
+
+
+RFB_trips_year <- RFB_trips %>%
+  dplyr::select(Colony_f, Longitude, Latitude, TripID, Monsoon, Year) %>%
+  mutate(FE = factor("Monsoon", levels = FE_levels),
+         Colony_f = factor(Colony_f, levels = c("BP", "EI", "DI", "NI")))
+
+levels(RFB_trips_year$Colony_f) <- c("DG - BP", "DG - EI", "DI", "NI")
+
+trackmap_year <- ggplot() + 
+  scale_x_continuous(expand = c(0.05,0.05))+
+  scale_y_continuous(expand = c(0.05,0.05))+
+  geom_sf(data = filter(chagos, DEPTHLABEL == "land"), inherit.aes = FALSE, fill = NA, col = "grey30", lwd = 0.6)+
+  geom_path(data = RFB_trips_year, aes(x = Longitude, y = Latitude, group = TripID, colour = Monsoon), alpha = 0.6) + 
+  scale_colour_manual(values = monsoon_values, name = "Monsoon season") + 
+  new_scale_color() +
+  geom_point(data = colonies, aes(x = Long, y = Lat), inherit.aes = FALSE, cex = 1)+
+  theme_minimal() +
+  theme(panel.border = element_rect(fill = NA, colour = "gray"), 
+        panel.grid = element_blank(),
+        legend.key.size = unit(0.8, "cm"), axis.text.x=element_text(angle = 90, hjust = 0))+
+  facet_grid(Colony_f~Year)
+
+
+png("Figures/Tracks_year.png",width = 21, height = 15, units = "cm", res = 300)
+print(trackmap_year)
 dev.off()
 
 
@@ -459,11 +494,30 @@ EI <- colonies %>%
 
 library(ggspatial)
 
+CA_plot <- ggplot() + 
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("deep")), inherit.aes = FALSE, fill = "gray90", col = NA)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("variable")), inherit.aes = FALSE, fill = "gray90", col = NA)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("shallow")), inherit.aes = FALSE, fill = "gray50", col = NA)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("land")), inherit.aes = FALSE, fill = "grey30", col = "grey20", lwd = 0.6)+
+  geom_point(data = colonies, aes(x = Long, y = Lat), inherit.aes = FALSE, cex = 2, col = "magenta")+
+  geom_text(aes(x = 72, y=-6.32), label = "Great Chagos\nBank", cex = 2.9, lineheight = 1)+
+  geom_text(aes(x = 72.32, y=-7.35), label = "Diego\nGarcia\natoll", hjust = 1, cex = 2.9, lineheight = 1)+
+  geom_text(aes(x = 71.2, y=-6.45), label = "Danger\nIsland", hjust = 1, cex = 2.9, lineheight = 1)+
+  geom_text(aes(x = 72.38, y=-5.67), label = "Nelson's\nIsland", hjust = 0, cex = 2.9, lineheight = 1)+
+  theme_minimal()+
+  theme(panel.border = element_rect(fill = NA))+
+  annotation_scale(style = "ticks")+
+  ylab(NULL)+
+  xlab(NULL)
+CA_plot
+
 DG_plot <- ggplot() + 
   scale_x_continuous(limits = c(BP$Long-0.1, BP$Long+0.1), expand = c(0,0))+
   scale_y_continuous(limits = c(-7.47, -7.21), expand = c(0,0))+
-  geom_sf(data = filter(chagos, DEPTHLABEL == c("land")), inherit.aes = FALSE, fill = "grey50", col = "grey30", lwd = 0.6)+
-  geom_sf(data = filter(chagos, DEPTHLABEL == c("shallow")), inherit.aes = FALSE, fill = "gray80", col = NA)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("deep")), inherit.aes = FALSE, fill = "gray90", col = NA)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("variable")), inherit.aes = FALSE, fill = "gray90", col = NA)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("shallow")), inherit.aes = FALSE, fill = "gray50", col = NA)+
+  geom_sf(data = filter(chagos, DEPTHLABEL == c("land")), inherit.aes = FALSE, fill = "grey30", col = "grey20", lwd = 0.6)+
   geom_rect(aes(xmin = (EI$Long - 0.005), xmax = (EI$Long + 0.006), ymin = (EI$Lat - 0.004), ymax = (EI$Lat + 0.003)), inherit.aes = F, col = col_values[2], fill = NA)+
   annotate("text", label = "East Island", x = (EI$Long - 0.02), y = (EI$Lat + 0.01), col = col_values[2])+
   geom_rect(aes(xmin = (BP$Long - 0.005), xmax = (BP$Long + 0.03), ymin = (BP$Lat - 0.03), ymax = (BP$Lat + 0.003)), inherit.aes = F, col = col_values[1], fill = NA)+
@@ -474,15 +528,15 @@ DG_plot <- ggplot() +
   ylab(NULL)+
   xlab(NULL)
 
-png("Figures/Supp_DGmap.png",width = 8, height = 10, units = "cm", res = 300)
-print(DG_plot)
+png("Figures/Supp_DGmap.png",width = 16, height = 10, units = "cm", res = 300)
+print(CA_plot + DG_plot + plot_annotation(tag_levels = "A"))
 dev.off()
 
 ##### kernel overlap #####
 
 ##### re run kernels as one object for BA analyses
-
-RFBsp <- RFB_trips[,c("Longitude", "Latitude", "Colony")]
+unique(RFB_trips$Colony_f)
+RFBsp <- RFB_trips[,c("Longitude", "Latitude", "Colony_f")]
 colnames(RFBsp)[3] <- "id"
 coordinates(RFBsp) <- c("Longitude", "Latitude")
 RFBsf <- st_as_sfc(RFBsp)
@@ -498,7 +552,7 @@ coordinates(xy) <- ~x+y
 gridded(xy) <- TRUE
 
 RFBsp <- as(RFBlaea, "Spatial")
-RFBsp$id <- RFB_trips[,c("Colony")]
+RFBsp$id <- RFB_trips[,c("Colony_f")]
 
 RFB_UD <- kernelUD(RFBsp, kern = "bivnorm", grid = xy, same4all = F)
 
@@ -510,49 +564,8 @@ RFB_2019 <- RFB_trips %>%
   filter(Year == "2019")
 n_distinct(RFB_2019$BirdID)
 RFB_2019 %>%
-  group_by(Colony) %>%
+  group_by(Colony_f) %>%
   summarise(n = n_distinct(BirdID))
-
-### adjust track plot to combine 
-trackmap2019 <- ggplot() + 
-  geom_point(data = RFBcols_group, aes(x = lon, y = lat, cex = no.RFB), inherit.aes = FALSE, col = "gray40")+
-  scale_size_continuous("Colony size")+
-  geom_sf(data = sf_col_ll_poly.o, aes(col = Group.3, fill = Group.3, alpha = Group.2), lwd = 0.4)+
-  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
-                     guide="none") +
-  scale_fill_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
-                    guide="none") +
-  geom_raster(data = chagos_bathy_fort, aes(x=x, y=y), fill = "white") +
-  scale_alpha_discrete(limits = rev(levels(sf_col_ll_poly.o$Group.2)),"% UD",range = c(0.1, 1))+
-  new_scale_fill() +
-  geom_raster(data = chagos_bathy_fort, aes(x=x, y=y, fill=z), alpha = 0.8) +
-  scale_x_continuous(limits = c(67.5, 76.4), expand = c(0,0))+
-  scale_y_continuous(expand = c(-0.05,-0.05))+
-  #geom_path(data = MPA, aes(x = Long, y = Lat), inherit.aes = FALSE, col = "grey90", lwd = 0.6)+
-  geom_sf(data = MPA_shp, inherit.aes = FALSE, col = "grey90", lwd = 0.6, fill = NA)+
-  scale_fill_viridis_c(option="mako", "Depth (m)") + 
-  new_scale_color() +
-  # geom_path(data = RFB_trips, aes(x = Longitude, y = Latitude, group = TripID, colour = ColYear), alpha = 0.6) + 
-  # geom_path(data = RFB_trips[RFB_trips$ColYear == "NI_2018",], aes(x = Longitude, y = Latitude, group = TripID, colour = ColYear), alpha = 0.6) + 
-  # scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
-  #                    labels = c("Diego Garcia\n(ALL)", "Danger Island\n(2019)", "Nelson's Island\n(2018)", "Nelson's Island\n(2019)")) + 
-  geom_path(data = RFB_2019, aes(x = Longitude, y = Latitude, group = TripID, colour = Colony), alpha = 0.75) + 
-  # scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
-  #                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island")) + 
-  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island")) + 
-  guides(colour = guide_legend(override.aes = list(alpha = 1),order = 1),
-         alpha = guide_legend(order = 2),
-         linetype = guide_legend(order = 3),
-         size = guide_legend(order = 4))+
-  geom_point(data = colonies, aes(x = Long, y = Lat), inherit.aes = FALSE, cex = 1.1)+
-  theme_bw() +
-  theme(panel.grid = element_blank(), legend.key.size = unit(0.8, "cm"),
-        axis.title = element_blank())
-
-trackmap2019
 
 ### kernel areas 
 
@@ -610,7 +623,7 @@ sf_col_ll_poly_2019 = st_sf(
     }
   ))
 
-sf_col_ll_poly.o_2019 <- sf_col_ll_poly_2019[order(-sf_col_ll_poly$Group.2),]
+sf_col_ll_poly.o_2019 <- sf_col_ll_poly_2019[order(-sf_col_ll_poly_2019$Group.2),]
 sf_col_ll_poly.o_2019$Group.2 <- as.factor(sf_col_ll_poly.o_2019$Group.2)
 
 map_kernel_2019 <- ggplot() + 
@@ -628,12 +641,12 @@ map_kernel_2019 <- ggplot() +
   #                  labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
   #                  guide="none") +
   scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                     labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
+                     labels = c("Diego Garcia - Barton Point", "Danger Island", "Nelson's Island"),
                      guide="none") +
   scale_fill_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
-                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island"),
+                    labels = c("Diego Garcia - Barton Point", "Danger Island", "Nelson's Island"),
                     guide="none") +
-  scale_alpha_discrete(limits = rev(levels(sf_col_ll_poly.o$Group.2)),"% UD",range = c(0.1, 1))+
+  scale_alpha_discrete(limits = rev(levels(sf_col_ll_poly.o_2019$Group.2)),"% UD",range = c(0.1, 1))+
   #guides(fill = guide_legend(override.aes = list(alpha = 1)))+
   #geom_point(data = RFBcols, aes(x = lon, y = lat), inherit.aes = FALSE, cex = 0.5, col = "gray40")+
   geom_point(data = RFBcols_group, aes(x = lon, y = lat, cex = no.RFB), inherit.aes = FALSE, col = "gray40")+
@@ -644,6 +657,47 @@ map_kernel_2019 <- ggplot() +
         axis.title = element_blank())
 map_kernel_2019
 
+
+### adjust track plot to combine 
+trackmap2019 <- ggplot() + 
+  geom_point(data = RFBcols_group, aes(x = lon, y = lat, cex = no.RFB), inherit.aes = FALSE, col = "gray40")+
+  scale_size_continuous("Colony size")+
+  geom_sf(data = sf_col_ll_poly.o_2019, aes(col = Group.3, fill = Group.3, alpha = Group.2), lwd = 0.4)+
+  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
+                     labels = c("Diego Garcia - Barton Point", "Danger Island", "Nelson's Island"),
+                     guide="none") +
+  scale_fill_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
+                    labels = c("Diego Garcia - Barton Point", "Danger Island", "Nelson's Island"),
+                    guide="none") +
+  geom_raster(data = chagos_bathy_fort, aes(x=x, y=y), fill = "white") +
+  scale_alpha_discrete(limits = rev(levels(sf_col_ll_poly.o_2019$Group.2)),"% UD",range = c(0.1, 1))+
+  new_scale_fill() +
+  geom_raster(data = chagos_bathy_fort, aes(x=x, y=y, fill=z), alpha = 0.8) +
+  scale_x_continuous(limits = c(67.5, 76.4), expand = c(0,0))+
+  scale_y_continuous(expand = c(-0.05,-0.05))+
+  #geom_path(data = MPA, aes(x = Long, y = Lat), inherit.aes = FALSE, col = "grey90", lwd = 0.6)+
+  geom_sf(data = MPA_shp, inherit.aes = FALSE, col = "grey90", lwd = 0.6, fill = NA)+
+  scale_fill_viridis_c(option="mako", "Depth (m)") + 
+  new_scale_color() +
+  # geom_path(data = RFB_trips, aes(x = Longitude, y = Latitude, group = TripID, colour = ColYear), alpha = 0.6) + 
+  # geom_path(data = RFB_trips[RFB_trips$ColYear == "NI_2018",], aes(x = Longitude, y = Latitude, group = TripID, colour = ColYear), alpha = 0.6) + 
+  # scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
+  #                    labels = c("Diego Garcia\n(ALL)", "Danger Island\n(2019)", "Nelson's Island\n(2018)", "Nelson's Island\n(2019)")) + 
+  geom_path(data = RFB_2019, aes(x = Longitude, y = Latitude, group = TripID, colour = Colony_f), alpha = 0.75) + 
+  # scale_color_brewer(palette = "RdPu", type = "seq", direction=-1, "Colony",
+  #                    labels = c("Diego Garcia", "Danger Island", "Nelson's Island")) + 
+  scale_color_manual(values = brewer.pal(4, "RdPu")[c(4,3,2)], "Colony",
+                     labels = c("Diego Garcia - Barton Point", "Danger Island", "Nelson's Island")) + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1),order = 1),
+         alpha = guide_legend(order = 2),
+         linetype = guide_legend(order = 3),
+         size = guide_legend(order = 4))+
+  geom_point(data = colonies, aes(x = Long, y = Lat), inherit.aes = FALSE, cex = 1.1)+
+  theme_bw() +
+  theme(panel.grid = element_blank(), legend.key.size = unit(0.8, "cm"),
+        axis.title = element_blank())
+
+trackmap2019
 
 trackplots_2019 <- ggarrange(
   trackmap2019, map_kernel_2019, labels = c("a", "b"), ncol = 1, common.legend = T, legend = "right", align = "h"
@@ -710,4 +764,237 @@ supp.angle.plot
 png("Figures/Supp_Distance_depAngle.png",width = 22, height = 18, units = "cm", res = 300)
 print(supp.angle.plot)
 dev.off()
+
+
+# BA Overlap : intra-colony effects #####
+
+# 1. Monsoon ####
+
+Intracol_Monsoon <- RFB_trips %>%
+  dplyr::select(Longitude, Latitude, Colony_f, Monsoon) %>%
+  mutate(col_monsoon = paste0(Colony_f, "_", Monsoon))
+
+IC_Monsoon_sp <- Intracol_Monsoon %>%
+  dplyr::select(Longitude, Latitude, col_monsoon)
+colnames(IC_Monsoon_sp)[3] <- "id"
+coordinates(IC_Monsoon_sp) <- c("Longitude", "Latitude")
+IC_Monsoon_sf <- st_as_sfc(IC_Monsoon_sp)
+st_crs(IC_Monsoon_sf) <- 4326
+IC_Monsoon_laea <- st_transform(IC_Monsoon_sf, CRS("+proj=laea +lat_0=-7 +lon_0=72 +units=m")) 
+
+bbox <- st_bbox(IC_Monsoon_laea)
+x <- seq(as.numeric(bbox["xmin"])-35000,as.numeric(bbox["xmax"])+35000,by=1000) # by = 1km grid
+y <- seq(as.numeric(bbox["ymin"])-35000,as.numeric(bbox["ymax"])+35000,by=1000)
+xy <- expand.grid(x=x,y=y)
+coordinates(xy) <- ~x+y
+gridded(xy) <- TRUE
+
+IC_Monsoon_sp <- as(IC_Monsoon_laea, "Spatial")
+IC_Monsoon_sp$id <- Intracol_Monsoon$col_monsoon
+
+IC_Monsoon_UD <- kernelUD(IC_Monsoon_sp, kern = "bivnorm", grid = xy, same4all = F)
+
+BA_IC_Monsoon <- kerneloverlaphr(IC_Monsoon_UD, method = c("BA")) 
+BA_IC_Monsoon_long <- BA_IC_Monsoon %>%
+  as_tibble(rownames = "col_Monsoon1") %>%
+  gather(., key="col_Monsoon2", value = "BA", -col_Monsoon1) %>%
+  # remove rows where comparison between matching UDs 
+  filter(!col_Monsoon1 == col_Monsoon2) %>%
+  separate(., col_Monsoon1, into = c("col1", "Monsoon1")) %>%
+  separate(., col_Monsoon2, into = c("col2", "Monsoon2")) %>%
+  # keep pairwise comparisons only
+  filter(col1 == col2) %>%
+  # keep one of pairwise comparisons
+  distinct(., col1, .keep_all = T) %>%
+  rename(Colony_f = col1) %>%
+  mutate(FE = "Monsoon") %>%
+  dplyr::select(Colony_f, FE, BA)
+BA_IC_Monsoon_long
+
+
+# 2. Sex ####
+
+Intracol_Sex <- RFB_trips %>%
+  filter(Sex %in% c("F", "M")) %>%
+  dplyr::select(Longitude, Latitude, Colony_f, Sex) %>%
+  mutate(col_Sex = paste0(Colony_f, "_", Sex))
+
+IC_Sex_sp <- Intracol_Sex %>%
+  dplyr::select(Longitude, Latitude, col_Sex)
+colnames(IC_Sex_sp)[3] <- "id"
+coordinates(IC_Sex_sp) <- c("Longitude", "Latitude")
+IC_Sex_sf <- st_as_sfc(IC_Sex_sp)
+st_crs(IC_Sex_sf) <- 4326
+IC_Sex_laea <- st_transform(IC_Sex_sf, CRS("+proj=laea +lat_0=-7 +lon_0=72 +units=m")) 
+
+bbox <- st_bbox(IC_Sex_laea)
+x <- seq(as.numeric(bbox["xmin"])-35000,as.numeric(bbox["xmax"])+35000,by=1000) # by = 1km grid
+y <- seq(as.numeric(bbox["ymin"])-35000,as.numeric(bbox["ymax"])+35000,by=1000)
+xy <- expand.grid(x=x,y=y)
+coordinates(xy) <- ~x+y
+gridded(xy) <- TRUE
+
+IC_Sex_sp <- as(IC_Sex_laea, "Spatial")
+IC_Sex_sp$id <- Intracol_Sex$col_Sex
+
+IC_Sex_UD <- kernelUD(IC_Sex_sp, kern = "bivnorm", grid = xy, same4all = F)
+
+BA_IC_Sex <- kerneloverlaphr(IC_Sex_UD, method = c("BA")) 
+BA_IC_Sex_long <- BA_IC_Sex %>%
+  as_tibble(rownames = "col_Sex1") %>%
+  gather(., key="col_Sex2", value = "BA", -col_Sex1) %>%
+  # remove rows where comparison between matching UDs 
+  filter(!col_Sex1 == col_Sex2) %>%
+  separate(., col_Sex1, into = c("col1", "Sex1")) %>%
+  separate(., col_Sex2, into = c("col2", "Sex2")) %>%
+  # keep pairwise comparisons only
+  filter(col1 == col2) %>%
+  # keep one of pairwise comparisons
+  distinct(., col1, .keep_all = T) %>%
+  rename(Colony_f = col1) %>%
+  mutate(FE = "Sex") %>%
+  dplyr::select(Colony_f, FE, BA)
+BA_IC_Sex_long
+
+
+# 3. Breed_Stage ####
+
+Intracol_Breed_Stage <- RFB_trips %>%
+  filter(Breed_Stage %in% c("chick-rearing", "incubation")) %>%
+  dplyr::select(Longitude, Latitude, Colony_f, Breed_Stage) %>%
+  mutate(col_Breed_Stage = paste0(Colony_f, "_", Breed_Stage))
+
+IC_Breed_Stage_sp <- Intracol_Breed_Stage %>%
+  dplyr::select(Longitude, Latitude, col_Breed_Stage)
+colnames(IC_Breed_Stage_sp)[3] <- "id"
+coordinates(IC_Breed_Stage_sp) <- c("Longitude", "Latitude")
+IC_Breed_Stage_sf <- st_as_sfc(IC_Breed_Stage_sp)
+st_crs(IC_Breed_Stage_sf) <- 4326
+IC_Breed_Stage_laea <- st_transform(IC_Breed_Stage_sf, CRS("+proj=laea +lat_0=-7 +lon_0=72 +units=m")) 
+
+bbox <- st_bbox(IC_Breed_Stage_laea)
+x <- seq(as.numeric(bbox["xmin"])-35000,as.numeric(bbox["xmax"])+35000,by=1000) # by = 1km grid
+y <- seq(as.numeric(bbox["ymin"])-35000,as.numeric(bbox["ymax"])+35000,by=1000)
+xy <- expand.grid(x=x,y=y)
+coordinates(xy) <- ~x+y
+gridded(xy) <- TRUE
+
+IC_Breed_Stage_sp <- as(IC_Breed_Stage_laea, "Spatial")
+IC_Breed_Stage_sp$id <- Intracol_Breed_Stage$col_Breed_Stage
+
+IC_Breed_Stage_UD <- kernelUD(IC_Breed_Stage_sp, kern = "bivnorm", grid = xy, same4all = F)
+
+BA_IC_Breed_Stage <- kerneloverlaphr(IC_Breed_Stage_UD, method = c("BA")) 
+BA_IC_Breed_Stage_long <- BA_IC_Breed_Stage %>%
+  as_tibble(rownames = "col_Breed_Stage1") %>%
+  gather(., key="col_Breed_Stage2", value = "BA", -col_Breed_Stage1) %>%
+  # remove rows where comparison between matching UDs 
+  filter(!col_Breed_Stage1 == col_Breed_Stage2) %>%
+  separate(., col_Breed_Stage1, into = c("col1", "Breed_Stage1"), sep = "_") %>%
+  separate(., col_Breed_Stage2, into = c("col2", "Breed_Stage2"), sep = "_") %>%
+  # keep pairwise comparisons only
+  filter(col1 == col2) %>%
+  # keep one of pairwise comparisons
+  distinct(., col1, .keep_all = T) %>%
+  rename(Colony_f = col1) %>%
+  mutate(FE = "Breeding Stage") %>%
+  dplyr::select(Colony_f, FE, BA)
+BA_IC_Breed_Stage_long
+
+
+
+
+# 4. trip_length_days ####
+
+Intracol_trip_length_days <- RFB_trips_tripmetrics %>%
+  dplyr::select(Longitude, Latitude, Colony_f, trip_length_days) %>%
+  mutate(col_trip_length_days = paste0(Colony_f, "_", trip_length_days))
+
+IC_trip_length_days_sp <- Intracol_trip_length_days %>%
+  dplyr::select(Longitude, Latitude, col_trip_length_days)
+colnames(IC_trip_length_days_sp)[3] <- "id"
+coordinates(IC_trip_length_days_sp) <- c("Longitude", "Latitude")
+IC_trip_length_days_sf <- st_as_sfc(IC_trip_length_days_sp)
+st_crs(IC_trip_length_days_sf) <- 4326
+IC_trip_length_days_laea <- st_transform(IC_trip_length_days_sf, CRS("+proj=laea +lat_0=-7 +lon_0=72 +units=m")) 
+
+bbox <- st_bbox(IC_trip_length_days_laea)
+x <- seq(as.numeric(bbox["xmin"])-35000,as.numeric(bbox["xmax"])+35000,by=1000) # by = 1km grid
+y <- seq(as.numeric(bbox["ymin"])-35000,as.numeric(bbox["ymax"])+35000,by=1000)
+xy <- expand.grid(x=x,y=y)
+coordinates(xy) <- ~x+y
+gridded(xy) <- TRUE
+
+IC_trip_length_days_sp <- as(IC_trip_length_days_laea, "Spatial")
+IC_trip_length_days_sp$id <- Intracol_trip_length_days$col_trip_length_days
+
+IC_trip_length_days_UD <- kernelUD(IC_trip_length_days_sp, kern = "bivnorm", grid = xy, same4all = F)
+
+BA_IC_trip_length_days <- kerneloverlaphr(IC_trip_length_days_UD, method = c("BA")) 
+BA_IC_trip_length_days_long <- BA_IC_trip_length_days %>%
+  as_tibble(rownames = "col_trip_length_days1") %>%
+  gather(., key="col_trip_length_days2", value = "BA", -col_trip_length_days1) %>%
+  # remove rows where comparison between matching UDs 
+  filter(!col_trip_length_days1 == col_trip_length_days2) %>%
+  separate(., col_trip_length_days1, into = c("col1", "trip_length_days1"), sep = "_") %>%
+  separate(., col_trip_length_days2, into = c("col2", "trip_length_days2"), sep = "_") %>%
+  # keep pairwise comparisons only
+  filter(col1 == col2) %>%
+  # keep one of pairwise comparisons
+  distinct(., col1, .keep_all = T) %>%
+  rename(Colony_f = col1) %>%
+  mutate(FE = "Trip length") %>%
+  dplyr::select(Colony_f, FE, BA) %>%
+  mutate(Colony_f = case_when(Colony_f== "DG - BP" ~ "BP", Colony_f== "DG - EI" ~ "EI", .default = Colony_f))
+BA_IC_trip_length_days_long
+
+BA_IC <- bind_rows(BA_IC_Monsoon_long, BA_IC_Sex_long, BA_IC_Breed_Stage_long, BA_IC_trip_length_days_long)
+
+write_csv(BA_IC, "Data/kernels/BAvalues_Intracol.csv")
+
+
+
+###### test hexagon grid ####
+library(raster)
+
+min(RFB_trips$Longitude)
+max(RFB_trips$Longitude)
+min(RFB_trips$Latitude)
+max(RFB_trips$Latitude)
+
+
+RFBsf <- st_as_sf(RFB_trips, coords=c("Longitude","Latitude"), crs=4326)
+RFBlaea <- st_transform(RFBsf, CRS("+proj=laea +lat_0=-7 +lon_0=72 +units=m")) 
+hgrid <- st_make_grid(RFBlaea, cellsize = 20000, square = FALSE) %>% # cellsize in m, i.e., 10000 = 10km
+  st_transform(crs=4326) %>%
+  st_as_sf() %>%
+  mutate(hID = c(1:NROW(.)))
+
+
+ggplot()+
+  geom_sf(data=hgrid)+
+  geom_sf(data=RFBsf, col = "blue")
+  
+
+
+chagos_bathy <- getNOAA.bathy(lon1 = 66, lon2 = 78,
+                              lat1 = -1.5, lat2 = -11.6, resolution = 1)
+chagos_bathy_sf <- fortify(chagos_bathy) %>%
+  st_as_sf(., coords=c("x","y"), crs=4326)
+head(chagos_bathy_sf)
+
+hgrid_bathy <- st_join(hgrid, chagos_bathy_sf) %>% 
+  group_by(hID) %>% 
+  summarise(mean_bathy = mean(z))
+
+chagos_bathy_raster <- marmap::as.raster(chagos_bathy)
+slope <- terrain(chagos_bathy_raster, opt="slope", unit="degrees", neighbours="8") %>%
+  raster::as.data.frame(., xy=TRUE) %>%
+  st_as_sf(., coords=c("x","y"), crs=4326)
+
+hgrid_slope <- st_join(hgrid, slope) %>% 
+  group_by(hID) %>% 
+  summarise(mean_slope = mean(slope))
+
+head(hgrid_bathy_slope)
 

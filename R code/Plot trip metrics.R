@@ -40,6 +40,7 @@ tripdur
 # plot time of departures/arrivals ####
 
 mean.dawn <- mean(hour(ymd_hms(RFB_tripmetrics_sun_complete$Dep_nauticalDawn)) + minute(ymd_hms(RFB_tripmetrics_sun_complete$Dep_nauticalDawn))/60)
+
 mean.dusk <- mean(hour(ymd_hms(RFB_tripmetrics_sun_complete$Arr_nauticalDusk)) + minute(ymd_hms(RFB_tripmetrics_sun_complete$Arr_nauticalDusk))/60)
 
 # read in model estimates data
